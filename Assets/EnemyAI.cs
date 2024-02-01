@@ -1,118 +1,73 @@
-
 using UnityEngine;
 using UnityEngine.AI;
 
-public class EnemyAiTutorial : MonoBehaviour
+public class Enemy : MonoBehaviour
 {
-    public NavMeshAgent agent;
+    public float moveSpeed = 3f;
+    public float attackRange = 2f;
+    public float attackDamage = 10f;
+    public float attackCooldown = 2f;
 
-    public Transform player;
+    private Transform target;
+    private NavMeshAgent navMeshAgent;
+    private float nextAttackTime = 0f;
 
-    public LayerMask whatIsGround, whatIsPlayer;
-
-    public float health;
-
-    //Patroling
-    public Vector3 walkPoint;
-    bool walkPointSet;
-    public float walkPointRange;
-
-    //Attacking
-    public float timeBetweenAttacks;
-    bool alreadyAttacked;
-    public GameObject projectile;
-
-    //States
-    public float sightRange, attackRange;
-    public bool playerInSightRange, playerInAttackRange;
-
-    private void Awake()
+    void Start()
     {
-        player = GameObject.Find("PlayerObj").transform;
-        agent = GetComponent<NavMeshAgent>();
-    }
+        navMeshAgent = GetComponent<NavMeshAgent>();
+        target = GameObject.FindGameObjectWithTag("Cabin")?.transform;
 
-    private void Update()
-    {
-        //Check for sight and attack range
-        playerInSightRange = Physics.CheckSphere(transform.position, sightRange, whatIsPlayer);
-        playerInAttackRange = Physics.CheckSphere(transform.position, attackRange, whatIsPlayer);
-
-        if (!playerInSightRange && !playerInAttackRange) Patroling();
-        if (playerInSightRange && !playerInAttackRange) ChasePlayer();
-        if (playerInAttackRange && playerInSightRange) AttackPlayer();
-    }
-
-    private void Patroling()
-    {
-        if (!walkPointSet) SearchWalkPoint();
-
-        if (walkPointSet)
-            agent.SetDestination(walkPoint);
-
-        Vector3 distanceToWalkPoint = transform.position - walkPoint;
-
-        //Walkpoint reached
-        if (distanceToWalkPoint.magnitude < 1f)
-            walkPointSet = false;
-    }
-    private void SearchWalkPoint()
-    {
-        //Calculate random point in range
-        float randomZ = Random.Range(-walkPointRange, walkPointRange);
-        float randomX = Random.Range(-walkPointRange, walkPointRange);
-
-        walkPoint = new Vector3(transform.position.x + randomX, transform.position.y, transform.position.z + randomZ);
-
-        if (Physics.Raycast(walkPoint, -transform.up, 2f, whatIsGround))
-            walkPointSet = true;
-    }
-
-    private void ChasePlayer()
-    {
-        agent.SetDestination(player.position);
-    }
-
-    private void AttackPlayer()
-    {
-        //Make sure enemy doesn't move
-        agent.SetDestination(transform.position);
-
-        transform.LookAt(player);
-
-        if (!alreadyAttacked)
+        if (target == null)
         {
-            ///Attack code here
-            Rigidbody rb = Instantiate(projectile, transform.position, Quaternion.identity).GetComponent<Rigidbody>();
-            rb.AddForce(transform.forward * 32f, ForceMode.Impulse);
-            rb.AddForce(transform.up * 8f, ForceMode.Impulse);
-            ///End of attack code
-
-            alreadyAttacked = true;
-            Invoke(nameof(ResetAttack), timeBetweenAttacks);
+            Debug.LogError("Cabin not found! Make sure it has the 'Cabin' tag.");
+        }
+        else if (navMeshAgent == null)
+        {
+            Debug.LogError("Enemy does not have a NavMeshAgent component.");
+        }
+        else if (!navMeshAgent.isOnNavMesh)
+        {
+            Debug.LogError("Enemy is not on a NavMesh. Make sure it is properly set up.");
+        }
+        else
+        {
+            navMeshAgent.speed = moveSpeed;
+            navMeshAgent.stoppingDistance = attackRange;
         }
     }
-    private void ResetAttack()
+
+    void Update()
     {
-        alreadyAttacked = false;
+        if (target != null)
+        {
+            float distanceToTarget = Vector3.Distance(transform.position, target.position);
+
+            if (distanceToTarget > attackRange)
+            {
+                MoveToTarget();
+            }
+        }
     }
 
-    public void TakeDamage(int damage)
+    void MoveToTarget()
     {
-        health -= damage;
-
-        if (health <= 0) Invoke(nameof(DestroyEnemy), 0.5f);
-    }
-    private void DestroyEnemy()
-    {
-        Destroy(gameObject);
+        if (navMeshAgent != null && navMeshAgent.isOnNavMesh)
+        {
+            navMeshAgent.SetDestination(target.position);
+        }
     }
 
-    private void OnDrawGizmosSelected()
+    void OnCollisionEnter(Collision collision)
     {
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(transform.position, attackRange);
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, sightRange);
+        if (collision.gameObject.CompareTag("Cabin") && Time.time >= nextAttackTime)
+        {
+            // Perform attack logic here
+            Debug.Log("Attacking CABIN!");
+
+            // Apply damage to the CABIN or perform other attack actions
+            // For example: target.GetComponent<CabinHealth>().TakeDamage(attackDamage);
+
+            nextAttackTime = Time.time + attackCooldown;
+        }
     }
 }
